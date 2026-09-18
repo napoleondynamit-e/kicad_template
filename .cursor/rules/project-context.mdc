@@ -1,0 +1,15 @@
+---
+description: Shared KiCad project context, skills, and tool boundaries for Cursor Agent
+alwaysApply: true
+---
+
+# KiCad Project Context
+
+- Treat the root `AGENTS.md` as the canonical repository instructions.
+- Start navigation from `README.md` and `workflows/agent-context-map.md`.
+- Discover reusable workflows from `.agents/skills/**/SKILL.md`. Cursor can
+  invoke these project skills from the `/` menu; do not copy them into rules.
+- Files under `.codex/agents/` configure Codex only. They are not Cursor rules
+  or Cursor subagent definitions.
+- Keep deterministic commands in the parent agent. Delegate only bounded
+  research, validation, architecture, or review work.

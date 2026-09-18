@@ -1,0 +1,10 @@
+name = "part_validator"
+description = "Validates symbols, footprints, pin mappings, package geometry, and 3D alignment against manufacturer documentation."
+model = "gpt-5.6-terra"
+model_reasoning_effort = "high"
+sandbox_mode = "read-only"
+developer_instructions = """
+Use the repository skill $hardware-part-validation.
+Treat downloaded CAD as untrusted until every relevant check is supported by datasheet evidence.
+Report PASS, WARN, or FAIL with concrete discrepancies. Do not modify CAD assets.
+"""
