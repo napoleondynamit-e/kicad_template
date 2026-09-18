@@ -57,7 +57,8 @@ ensure_project_structure() {
   if [[ -f "${ROOT_DIR}/AGENTS.md" \
     && -f "${ROOT_DIR}/Makefile" \
     && -f "${ROOT_DIR}/README.md" \
-    && -d "${ROOT_DIR}/workflows" ]]; then
+    && -d "${ROOT_DIR}/docs/requirements" ]]; then
+    log "Project structure already exists; template sync is intentionally skipped"
     return
   fi
 
@@ -107,7 +108,7 @@ check_prerequisites() {
   fi
 }
 
-sync_repo() {
+sync_tool_repo() {
   local repo="$1"
   local ref="$2"
   local destination="$3"
@@ -120,7 +121,7 @@ sync_repo() {
     [[ -z "$(git -C "${destination}" status --porcelain)" ]] \
       || die "Tool checkout has local changes: ${destination}"
 
-    log "Updating ${destination#"${ROOT_DIR}/"} (${ref})"
+    log "Updating tool dependency ${destination#"${ROOT_DIR}/"} (${ref})"
     git -C "${destination}" fetch --prune origin
     git -C "${destination}" checkout --quiet "${ref}"
     git -C "${destination}" pull --ff-only origin "${ref}"
@@ -130,7 +131,7 @@ sync_repo() {
   [[ ! -e "${destination}" ]] \
     || die "Path exists but is not a Git checkout: ${destination}"
 
-  log "Cloning ${repo} (${ref})"
+  log "Cloning tool dependency ${repo} (${ref})"
   mkdir -p "$(dirname -- "${destination}")"
   git clone --branch "${ref}" --single-branch "${repo}" "${destination}"
 }
@@ -303,7 +304,7 @@ if [[ "${CHECK_ONLY}" == true ]]; then
 fi
 
 mkdir -p "${TOOLS_DIR}" "${STATE_DIR}"
-sync_repo "${KICAD_HAPPY_REPO}" "${KICAD_HAPPY_REF}" "${KICAD_HAPPY_DIR}"
+sync_tool_repo "${KICAD_HAPPY_REPO}" "${KICAD_HAPPY_REF}" "${KICAD_HAPPY_DIR}"
 link_kicad_happy_skills
 install_datasheet_cli
 write_environment

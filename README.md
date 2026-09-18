@@ -37,16 +37,21 @@ tools, and creates the skill links. It does not initialize a Git repository or
 configure remotes. For safety, automatic population only runs when
 `bootstrap.sh` is the directory's sole file.
 
+Template population is intentionally one-time. Later `bootstrap.sh` runs never
+merge or copy newer template files into an existing project, so local project
+changes remain fully independent. Create a new project to receive newer
+template structure or defaults.
+
 If the project was already created from this template, run:
 
 ```bash
 ./bootstrap.sh
 ```
 
-The script is idempotent. It updates the project-local `kikcad-happy` checkout,
-installs `datasheet-cli` into the user's Cargo bin directory when `datasheet`
-is not already available in `PATH`, and exposes the `kikcad-happy` skills to
-Codex and Cursor through `.agents/skills/`.
+For an existing project, the script only updates the project-local
+`kikcad-happy` tool checkout, installs `datasheet-cli` into the user's Cargo bin
+directory when `datasheet` is not already available in `PATH`, and refreshes
+the `kikcad-happy` skill links under `.agents/skills/`.
 
 Verify the installation without network access or modifications:
 
@@ -103,7 +108,6 @@ DATASHEET_CLI_REPO=https://github.com/example/datasheet-cli.git ./bootstrap.sh
 | `fab/` | Manufacturing release outputs and manifests |
 | `stackup/` | Stackup and impedance constraints |
 | `work/` | Generated reports and intermediate analysis output |
-| `workflows/` | Human- and agent-readable project workflows |
 | `.agents/skills/` | Shared Agent Skills plus generated kicad-happy links |
 | `.codex/` | Codex project configuration and custom subagents |
 | `.cursor/` | Cursor-specific project rules |
