@@ -23,15 +23,29 @@ Optional tools:
 
 ## Start A Project
 
-Create a repository from this template, clone it, and run:
+Create an empty project directory, download only `bootstrap.sh`, and run it:
+
+```bash
+mkdir my-board
+curl -fsSL --output my-board/bootstrap.sh \
+  https://raw.githubusercontent.com/napoleondynamit-e/kicad_template/master/bootstrap.sh
+bash my-board/bootstrap.sh
+```
+
+The script populates its directory with the template structure, installs the
+tools, and creates the skill links. It does not initialize a Git repository or
+configure remotes. For safety, automatic population only runs when
+`bootstrap.sh` is the directory's sole file.
+
+If the project was already created from this template, run:
 
 ```bash
 ./bootstrap.sh
-source .tools/env
 ```
 
-The script is idempotent. It clones the project tools, updates existing clean
-checkouts, compiles `datasheet-cli`, and exposes the `kikcad-happy` skills to
+The script is idempotent. It updates the project-local `kikcad-happy` checkout,
+installs `datasheet-cli` into the user's Cargo bin directory when `datasheet`
+is not already available in `PATH`, and exposes the `kikcad-happy` skills to
 Codex and Cursor through `.agents/skills/`.
 
 Verify the installation without network access or modifications:
@@ -44,27 +58,29 @@ make doctor
 Then replace this README introduction with the product description, fill in
 `docs/requirements/`, and create the KiCad project under `kicad/`.
 
-## Local Tool Layout
+## Tool Layout
 
-Bootstrap keeps all generated tooling inside the project:
+Bootstrap keeps the `kikcad-happy` checkout and generated environment inside
+the project:
 
 ```text
 .tools/
-|-- bin/datasheet
 |-- env
-|-- kicad-happy/
-`-- src/datasheet-cli/
+`-- kicad-happy/
 ```
 
 `kikcad-happy` comes from
 `https://github.com/napoleondynamit-e/kikcad-happy`. Its skills are linked into
 `.agents/skills/`, the shared project-level location understood by Codex and
 Cursor. `datasheet-cli` comes from
-`https://github.com/napoleondynamit-e/datasheet-cli` and is installed into
-`.tools/bin/`.
+`https://github.com/napoleondynamit-e/datasheet-cli` and is installed into the
+first suitable user-level bin directory already in `PATH` (normally
+`~/.cargo/bin` or `~/.local/bin`). Set `DATASHEET_CLI_INSTALL_ROOT` to override
+the selected Cargo install root.
 
-Nothing is installed globally. `.tools/` and generated skill links are ignored
-by Git. Override a repository or branch when testing a fork:
+Nothing requires system-wide or root installation. `.tools/` and generated
+skill links are ignored by Git. Override a repository or branch when testing a
+fork:
 
 ```bash
 KICAD_HAPPY_REF=my-branch ./bootstrap.sh

@@ -1,7 +1,7 @@
 SHELL := /usr/bin/env bash
 
 ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-DATASHEET ?= $(ROOT_DIR)/.tools/bin/datasheet
+DATASHEET ?= datasheet
 SNAPEDA_DIR ?= $(ROOT_DIR)/lib/snapeda
 
 .PHONY: bootstrap doctor snapeda_login snapeda_download erc drc

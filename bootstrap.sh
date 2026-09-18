@@ -5,28 +5,36 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TOOLS_DIR="${ROOT_DIR}/.tools"
 STATE_DIR="${TOOLS_DIR}/state"
 
+TEMPLATE_REPO="${TEMPLATE_REPO:-https://github.com/napoleondynamit-e/kicad_template.git}"
+TEMPLATE_REF="${TEMPLATE_REF:-master}"
 KICAD_HAPPY_REPO="${KICAD_HAPPY_REPO:-https://github.com/napoleondynamit-e/kikcad-happy.git}"
 KICAD_HAPPY_REF="${KICAD_HAPPY_REF:-main}"
 DATASHEET_CLI_REPO="${DATASHEET_CLI_REPO:-https://github.com/napoleondynamit-e/datasheet-cli.git}"
 DATASHEET_CLI_REF="${DATASHEET_CLI_REF:-master}"
+DATASHEET_CLI_INSTALL_ROOT="${DATASHEET_CLI_INSTALL_ROOT:-}"
 
 KICAD_HAPPY_DIR="${TOOLS_DIR}/kicad-happy"
-DATASHEET_CLI_DIR="${TOOLS_DIR}/src/datasheet-cli"
 CHECK_ONLY=false
 
 usage() {
   cat <<'EOF'
 Usage: ./bootstrap.sh [--check]
 
-Without arguments, installs or updates project-local tools and links the
-kicad-happy skills into .agents/skills.
+Without arguments, installs or updates the project tools and links the
+kicad-happy skills into .agents/skills. datasheet-cli is installed into the
+user's Cargo bin directory, which must be in PATH.
+
+When bootstrap.sh is the only file in its directory, the script first populates
+that directory with this template. It does not initialize or modify Git state.
 
 Options:
-  --check    Verify prerequisites and the local installation without changing it.
+  --check    Verify prerequisites and the installation without changing it.
   -h, --help Show this help.
 
-Repository URLs and branches can be overridden with KICAD_HAPPY_REPO,
-KICAD_HAPPY_REF, DATASHEET_CLI_REPO, and DATASHEET_CLI_REF.
+Repository URLs and branches can be overridden with TEMPLATE_REPO,
+TEMPLATE_REF, KICAD_HAPPY_REPO, KICAD_HAPPY_REF, DATASHEET_CLI_REPO, and
+DATASHEET_CLI_REF. Override the user-level Cargo install location with
+DATASHEET_CLI_INSTALL_ROOT.
 EOF
 }
 
@@ -43,10 +51,52 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
 
+ensure_project_structure() {
+  local temp_dir checkout_dir
+
+  if [[ -f "${ROOT_DIR}/AGENTS.md" \
+    && -f "${ROOT_DIR}/Makefile" \
+    && -f "${ROOT_DIR}/README.md" \
+    && -d "${ROOT_DIR}/workflows" ]]; then
+    return
+  fi
+
+  require_command git
+  require_command tar
+
+  if find "${ROOT_DIR}" -mindepth 1 -maxdepth 1 ! -name bootstrap.sh -print -quit \
+    | grep -q .; then
+    die "Project structure is missing and the directory is not empty: ${ROOT_DIR}"
+  fi
+
+  temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/kicad-template.XXXXXXXX")"
+  checkout_dir="${temp_dir}/template"
+
+  cleanup_template_checkout() {
+    rm -rf -- "${temp_dir}"
+  }
+  trap cleanup_template_checkout EXIT
+
+  log "Downloading template ${TEMPLATE_REPO} (${TEMPLATE_REF})"
+  git clone --quiet --depth 1 --branch "${TEMPLATE_REF}" \
+    "${TEMPLATE_REPO}" "${checkout_dir}"
+
+  if [[ -f "${ROOT_DIR}/bootstrap.sh" ]]; then
+    git -C "${checkout_dir}" archive HEAD \
+      | tar --exclude=bootstrap.sh -xf - -C "${ROOT_DIR}"
+    chmod +x "${ROOT_DIR}/bootstrap.sh"
+  else
+    git -C "${checkout_dir}" archive HEAD | tar -xf - -C "${ROOT_DIR}"
+  fi
+
+  cleanup_template_checkout
+  trap - EXIT
+
+  log "Populated project structure in ${ROOT_DIR}"
+}
+
 check_prerequisites() {
   require_command git
-  require_command cargo
-  require_command rustc
   require_command python3
   require_command kicad-cli
 
@@ -122,41 +172,91 @@ link_kicad_happy_skills() {
 }
 
 install_datasheet_cli() {
-  local commit stamp
-  commit="$(git -C "${DATASHEET_CLI_DIR}" rev-parse HEAD)"
-  stamp="${STATE_DIR}/datasheet-cli.commit"
+  local installed_path cargo_install_root cargo_bin_dir
 
-  if [[ -x "${TOOLS_DIR}/bin/datasheet" ]] \
-    && [[ -f "${stamp}" ]] \
-    && [[ "$(<"${stamp}")" == "${commit}" ]]; then
-    log "datasheet-cli is already current"
+  if installed_path="$(command -v datasheet 2>/dev/null)" \
+    && [[ "${installed_path}" != "${TOOLS_DIR}/bin/datasheet" ]]; then
+    log "datasheet-cli is already installed: ${installed_path}"
+    if [[ -e "${TOOLS_DIR}/bin/datasheet" || -L "${TOOLS_DIR}/bin/datasheet" ]]; then
+      rm -f -- "${TOOLS_DIR}/bin/datasheet"
+      log "Removed legacy project-local datasheet-cli"
+    fi
     return
   fi
 
-  log "Building datasheet-cli ${commit:0:12}"
+  if [[ -n "${installed_path:-}" ]]; then
+    log "Ignoring legacy project-local datasheet-cli: ${installed_path}"
+  fi
+
+  require_command cargo
+  require_command rustc
+
+  if [[ -n "${DATASHEET_CLI_INSTALL_ROOT}" ]]; then
+    cargo_install_root="${DATASHEET_CLI_INSTALL_ROOT}"
+  elif [[ -n "${CARGO_INSTALL_ROOT:-}" ]]; then
+    cargo_install_root="${CARGO_INSTALL_ROOT}"
+  elif [[ -n "${CARGO_HOME:-}" ]]; then
+    cargo_install_root="${CARGO_HOME}"
+  elif [[ ":${PATH}:" == *":${HOME:?HOME is required}/.cargo/bin:"* ]]; then
+    cargo_install_root="${HOME}/.cargo"
+  elif [[ ":${PATH}:" == *":${HOME}/.local/bin:"* ]]; then
+    cargo_install_root="${HOME}/.local"
+  else
+    cargo_install_root="${HOME}/.cargo"
+  fi
+  cargo_bin_dir="${cargo_install_root}/bin"
+
+  case ":${PATH}:" in
+    *":${cargo_bin_dir}:"*) ;;
+    *)
+      die "Cargo bin directory is not in PATH: ${cargo_bin_dir}. Add it to PATH and rerun bootstrap.sh."
+      ;;
+  esac
+
+  log "Installing datasheet-cli into ${cargo_bin_dir}"
   cargo install \
-    --path "${DATASHEET_CLI_DIR}/apps/datasheet-cli" \
-    --root "${TOOLS_DIR}" \
+    --git "${DATASHEET_CLI_REPO}" \
+    --branch "${DATASHEET_CLI_REF}" \
+    --root "${cargo_install_root}" \
     --locked \
-    --force
-  printf '%s\n' "${commit}" >"${stamp}"
+    datasheet-cli
+
+  if [[ -e "${TOOLS_DIR}/bin/datasheet" || -L "${TOOLS_DIR}/bin/datasheet" ]]; then
+    rm -f -- "${TOOLS_DIR}/bin/datasheet"
+    log "Removed legacy project-local datasheet-cli"
+  fi
+
+  hash -r
+  installed_path="$(command -v datasheet 2>/dev/null || true)"
+  [[ -n "${installed_path}" ]] \
+    || die "datasheet-cli was installed but datasheet is still unavailable in PATH"
+  log "Installed datasheet-cli: ${installed_path}"
 }
 
 write_environment() {
   cat >"${TOOLS_DIR}/env" <<EOF
 # Generated by bootstrap.sh. Source this file in an interactive shell.
-export PATH="${TOOLS_DIR}/bin:\${PATH}"
 export KICAD_HAPPY_DIR="${KICAD_HAPPY_DIR}"
 EOF
 }
 
 check_local_installation() {
-  local failed=false
+  local failed=false installed_path
 
   [[ -d "${KICAD_HAPPY_DIR}/.git" ]] \
     || { log "MISSING: ${KICAD_HAPPY_DIR}"; failed=true; }
-  [[ -x "${TOOLS_DIR}/bin/datasheet" ]] \
-    || { log "MISSING: ${TOOLS_DIR}/bin/datasheet"; failed=true; }
+
+  installed_path="$(command -v datasheet 2>/dev/null || true)"
+  if [[ -z "${installed_path}" ]]; then
+    log "MISSING: datasheet-cli is not available in PATH"
+    failed=true
+  elif [[ "${installed_path}" == "${TOOLS_DIR}/bin/datasheet" ]]; then
+    log "MISSING: only the legacy project-local datasheet-cli was found"
+    failed=true
+  else
+    log "FOUND: datasheet-cli at ${installed_path}"
+  fi
+
   [[ -f "${TOOLS_DIR}/env" ]] \
     || { log "MISSING: ${TOOLS_DIR}/env"; failed=true; }
 
@@ -171,7 +271,7 @@ check_local_installation() {
   fi
 
   [[ "${failed}" == false ]] || exit 1
-  log "Local tool installation is ready"
+  log "Tool installation is ready"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -191,6 +291,10 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+if [[ "${CHECK_ONLY}" == false ]]; then
+  ensure_project_structure
+fi
+
 check_prerequisites
 
 if [[ "${CHECK_ONLY}" == true ]]; then
@@ -201,9 +305,8 @@ fi
 mkdir -p "${TOOLS_DIR}" "${STATE_DIR}"
 sync_repo "${KICAD_HAPPY_REPO}" "${KICAD_HAPPY_REF}" "${KICAD_HAPPY_DIR}"
 link_kicad_happy_skills
-sync_repo "${DATASHEET_CLI_REPO}" "${DATASHEET_CLI_REF}" "${DATASHEET_CLI_DIR}"
 install_datasheet_cli
 write_environment
 check_local_installation
 
-log "Done. Run: source .tools/env"
+log "Done. datasheet-cli is available as: datasheet"

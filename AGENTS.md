@@ -14,7 +14,7 @@ files.
 
 ## Tool Use
 
-- Use `.tools/bin/datasheet` for datasheets, supplier data, SnapEDA/SnapMagic,
+- Use `datasheet` from `PATH` for datasheets, supplier data, SnapEDA/SnapMagic,
   and structured extraction.
 - Use `kicad-cli` for deterministic ERC, DRC, and exports.
 - Use the project-local `kicad-happy` skills as an additional review layer; they
