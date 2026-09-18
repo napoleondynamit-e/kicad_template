@@ -26,9 +26,3 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
-
-# Generated analysis and manufacturing files keep their directory placeholders.
-work/*
-!work/.gitkeep
-fab/*
-!fab/.gitkeep
