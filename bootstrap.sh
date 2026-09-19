@@ -9,20 +9,24 @@ TEMPLATE_REPO="${TEMPLATE_REPO:-https://github.com/napoleondynamit-e/kicad_templ
 TEMPLATE_REF="${TEMPLATE_REF:-master}"
 KICAD_HAPPY_REPO="${KICAD_HAPPY_REPO:-https://github.com/napoleondynamit-e/kikcad-happy.git}"
 KICAD_HAPPY_REF="${KICAD_HAPPY_REF:-main}"
+KICAD_MCP_REPO="${KICAD_MCP_REPO:-https://github.com/mixelpixx/KiCAD-MCP-Server.git}"
+KICAD_MCP_REF="${KICAD_MCP_REF:-v2.7.0}"
+KICAD_MCP_PYTHON="${KICAD_MCP_PYTHON:-}"
 DATASHEET_CLI_REPO="${DATASHEET_CLI_REPO:-https://github.com/napoleondynamit-e/datasheet-cli.git}"
 DATASHEET_CLI_REF="${DATASHEET_CLI_REF:-master}"
 DATASHEET_CLI_INSTALL_ROOT="${DATASHEET_CLI_INSTALL_ROOT:-}"
 
 KICAD_HAPPY_DIR="${TOOLS_DIR}/kicad-happy"
+KICAD_MCP_DIR="${TOOLS_DIR}/kicad-mcp"
 CHECK_ONLY=false
 
 usage() {
   cat <<'EOF'
 Usage: ./bootstrap.sh [--check]
 
-Without arguments, installs or updates the project tools and links the
-kicad-happy skills into .agents/skills. datasheet-cli is installed into the
-user's Cargo bin directory, which must be in PATH.
+Without arguments, installs or updates the project tools, builds the KiCad MCP
+server, and links the kicad-happy skills into .agents/skills. datasheet-cli is
+installed into the user's Cargo bin directory, which must be in PATH.
 
 When bootstrap.sh is the only file in its directory, the script first populates
 that directory with this template. It does not initialize or modify Git state.
@@ -32,9 +36,10 @@ Options:
   -h, --help Show this help.
 
 Repository URLs and branches can be overridden with TEMPLATE_REPO,
-TEMPLATE_REF, KICAD_HAPPY_REPO, KICAD_HAPPY_REF, DATASHEET_CLI_REPO, and
-DATASHEET_CLI_REF. Override the user-level Cargo install location with
-DATASHEET_CLI_INSTALL_ROOT.
+TEMPLATE_REF, KICAD_HAPPY_REPO, KICAD_HAPPY_REF, KICAD_MCP_REPO,
+KICAD_MCP_REF, DATASHEET_CLI_REPO, and DATASHEET_CLI_REF. Override the Python
+used by KiCad MCP with KICAD_MCP_PYTHON and the user-level Cargo install
+location with DATASHEET_CLI_INSTALL_ROOT.
 EOF
 }
 
@@ -100,6 +105,8 @@ check_prerequisites() {
   require_command git
   require_command python3
   require_command kicad-cli
+  require_command node
+  require_command npm
 
   if ! command -v codex >/dev/null 2>&1 \
     && ! command -v cursor-agent >/dev/null 2>&1 \
@@ -122,9 +129,14 @@ sync_tool_repo() {
       || die "Tool checkout has local changes: ${destination}"
 
     log "Updating tool dependency ${destination#"${ROOT_DIR}/"} (${ref})"
-    git -C "${destination}" fetch --prune origin
-    git -C "${destination}" checkout --quiet "${ref}"
-    git -C "${destination}" pull --ff-only origin "${ref}"
+    git -C "${destination}" fetch --prune --tags origin
+    if git -C "${destination}" show-ref --verify --quiet "refs/remotes/origin/${ref}"; then
+      git -C "${destination}" checkout --quiet "${ref}"
+      git -C "${destination}" merge --ff-only "origin/${ref}"
+    else
+      git -C "${destination}" fetch origin "${ref}"
+      git -C "${destination}" checkout --quiet --detach FETCH_HEAD
+    fi
     return
   fi
 
@@ -134,6 +146,75 @@ sync_tool_repo() {
   log "Cloning tool dependency ${repo} (${ref})"
   mkdir -p "$(dirname -- "${destination}")"
   git clone --branch "${ref}" --single-branch "${repo}" "${destination}"
+}
+
+resolve_kicad_mcp_python() {
+  local candidate resolved
+
+  if [[ -n "${KICAD_MCP_PYTHON}" ]]; then
+    candidate="${KICAD_MCP_PYTHON}"
+    if [[ ! -x "${candidate}" ]]; then
+      resolved="$(command -v "${candidate}" 2>/dev/null || true)"
+      [[ -n "${resolved}" ]] \
+        || die "KICAD_MCP_PYTHON is not executable: ${candidate}"
+      candidate="${resolved}"
+    fi
+    "${candidate}" -c 'import pcbnew' >/dev/null 2>&1 \
+      || die "KICAD_MCP_PYTHON cannot import pcbnew: ${candidate}"
+    printf '%s\n' "${candidate}"
+    return
+  fi
+
+  candidate="$(command -v python3 2>/dev/null || true)"
+  if [[ -n "${candidate}" ]] \
+    && "${candidate}" -c 'import pcbnew' >/dev/null 2>&1; then
+    printf '%s\n' "${candidate}"
+    return
+  fi
+
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    for candidate in \
+      /Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/*/bin/python3 \
+      /Applications/KiCAD/KiCad.app/Contents/Frameworks/Python.framework/Versions/*/bin/python3; do
+      if [[ -x "${candidate}" ]] \
+        && "${candidate}" -c 'import pcbnew' >/dev/null 2>&1; then
+        printf '%s\n' "${candidate}"
+        return
+      fi
+    done
+  fi
+
+  die "No Python interpreter can import pcbnew. Set KICAD_MCP_PYTHON to the Python shipped with KiCad."
+}
+
+install_kicad_mcp() {
+  local python_exe venv_python exclude_file pattern
+
+  python_exe="$(resolve_kicad_mcp_python)"
+  exclude_file="${KICAD_MCP_DIR}/.git/info/exclude"
+  for pattern in '/.venv/' '/node_modules/' '/dist/'; do
+    grep -Fxq "${pattern}" "${exclude_file}" 2>/dev/null \
+      || printf '%s\n' "${pattern}" >>"${exclude_file}"
+  done
+
+  log "Installing KiCad MCP Node dependencies"
+  npm --prefix "${KICAD_MCP_DIR}" ci
+  npm --prefix "${KICAD_MCP_DIR}" run build
+
+  if [[ ! -x "${KICAD_MCP_DIR}/.venv/bin/python" ]]; then
+    log "Creating KiCad MCP Python environment with ${python_exe}"
+    "${python_exe}" -m venv --system-site-packages "${KICAD_MCP_DIR}/.venv" \
+      || die "Unable to create the KiCad MCP virtual environment. Install Python venv support or set KICAD_MCP_PYTHON."
+  fi
+  venv_python="${KICAD_MCP_DIR}/.venv/bin/python"
+
+  log "Installing KiCad MCP Python dependencies"
+  "${venv_python}" -m pip install --disable-pip-version-check \
+    --requirement "${KICAD_MCP_DIR}/requirements.txt"
+  "${venv_python}" -c 'import pcbnew' >/dev/null 2>&1 \
+    || die "KiCad MCP virtual environment cannot import pcbnew"
+
+  log "Installed KiCad MCP ${KICAD_MCP_REF}"
 }
 
 link_kicad_happy_skills() {
@@ -238,6 +319,7 @@ write_environment() {
   cat >"${TOOLS_DIR}/env" <<EOF
 # Generated by bootstrap.sh. Source this file in an interactive shell.
 export KICAD_HAPPY_DIR="${KICAD_HAPPY_DIR}"
+export KICAD_MCP_DIR="${KICAD_MCP_DIR}"
 EOF
 }
 
@@ -246,6 +328,24 @@ check_local_installation() {
 
   [[ -d "${KICAD_HAPPY_DIR}/.git" ]] \
     || { log "MISSING: ${KICAD_HAPPY_DIR}"; failed=true; }
+  [[ -d "${KICAD_MCP_DIR}/.git" ]] \
+    || { log "MISSING: ${KICAD_MCP_DIR}"; failed=true; }
+  [[ -f "${KICAD_MCP_DIR}/dist/index.js" ]] \
+    || { log "MISSING: ${KICAD_MCP_DIR}/dist/index.js"; failed=true; }
+  [[ -x "${KICAD_MCP_DIR}/.venv/bin/python" ]] \
+    || { log "MISSING: ${KICAD_MCP_DIR}/.venv/bin/python"; failed=true; }
+
+  if [[ -x "${KICAD_MCP_DIR}/.venv/bin/python" ]] \
+    && ! "${KICAD_MCP_DIR}/.venv/bin/python" -c 'import pcbnew' >/dev/null 2>&1; then
+    log "MISSING: pcbnew is unavailable in the KiCad MCP Python environment"
+    failed=true
+  fi
+
+  if [[ -f "${KICAD_MCP_DIR}/dist/index.js" ]] \
+    && ! node --check "${KICAD_MCP_DIR}/dist/index.js" >/dev/null 2>&1; then
+    log "INVALID: KiCad MCP Node entry point"
+    failed=true
+  fi
 
   installed_path="$(command -v datasheet 2>/dev/null || true)"
   if [[ -z "${installed_path}" ]]; then
@@ -306,8 +406,10 @@ fi
 mkdir -p "${TOOLS_DIR}" "${STATE_DIR}"
 sync_tool_repo "${KICAD_HAPPY_REPO}" "${KICAD_HAPPY_REF}" "${KICAD_HAPPY_DIR}"
 link_kicad_happy_skills
+sync_tool_repo "${KICAD_MCP_REPO}" "${KICAD_MCP_REF}" "${KICAD_MCP_DIR}"
+install_kicad_mcp
 install_datasheet_cli
 write_environment
 check_local_installation
 
-log "Done. datasheet-cli is available as: datasheet"
+log "Done. datasheet-cli and the project KiCad MCP server are ready"

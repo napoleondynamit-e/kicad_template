@@ -4,13 +4,16 @@ ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 DATASHEET ?= datasheet
 SNAPEDA_DIR ?= $(ROOT_DIR)/lib/snapeda
 
-.PHONY: bootstrap doctor snapeda_login snapeda_download erc drc
+.PHONY: bootstrap doctor status snapeda_login snapeda_download erc drc
 
 bootstrap:
 	@./bootstrap.sh
 
 doctor:
 	@./bootstrap.sh --check
+
+status:
+	@cat "$(ROOT_DIR)/PROJECT_STATUS.md"
 
 snapeda_login:
 	@$(DATASHEET) snapeda login

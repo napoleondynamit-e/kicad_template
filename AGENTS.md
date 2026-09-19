@@ -7,15 +7,18 @@ files.
 ## Default Read Order
 
 1. `README.md`
-2. Relevant files under `docs/requirements/`
-3. Relevant architecture under `docs/architecture/`
-4. Existing decisions under `docs/decisions/`
+2. `PROJECT_STATUS.md`
+3. Relevant files under `docs/requirements/`
+4. Relevant architecture under `docs/architecture/`
+5. Existing decisions under `docs/decisions/`
 
 ## Project Context Map
 
 | Area | Location | Purpose |
 | --- | --- | --- |
-| Project overview | `README.md` | Product purpose, scope, and entry points |
+| Project overview | `README.md` | Unique product purpose, users, scope, constraints, and success criteria |
+| Project setup | `SETUP.md` | Bootstrap, tooling, and reusable workflow instructions |
+| Project stage | `PROJECT_STATUS.md` | Current stage, gates, blockers, and next action |
 | Agent rules | `AGENTS.md` | Always-applicable operating constraints |
 | Requirements | `docs/requirements/` | Electrical, mechanical, safety, and firmware-visible constraints |
 | Architecture | `docs/architecture/` | Power, interfaces, control, and protection topology |
@@ -31,10 +34,12 @@ files.
 - Use `datasheet` from `PATH` for datasheets, supplier data, SnapEDA/SnapMagic,
   and structured extraction.
 - Use `kicad-cli` for deterministic ERC, DRC, and exports.
+- Use the project KiCad MCP server for explicitly requested schematic, PCB,
+  symbol, footprint, placement, routing, and other CAD automation.
 - Use the project-local `kicad-happy` skills as an additional review layer; they
   do not replace ERC, DRC, calculations, or manufacturer documentation.
-- Use MCP only for external systems that the project-local tools and normal web
-  access cannot handle reliably.
+- Use other MCP servers only for external systems that the project-local tools
+  and normal web access cannot handle reliably.
 
 ## Operating Rules
 
@@ -43,10 +48,22 @@ files.
 - Treat imported CAD assets as untrusted until symbol pins, pad mapping,
   package dimensions, and orientation are validated.
 - Keep open-ended research in chat unless a durable report is requested.
+- Treat `README.md` as project-specific product context. Keep reusable setup and
+  tooling instructions in `SETUP.md`, and preserve critical unknowns as explicit
+  `TBD`s rather than inventing values.
+- Read `PROJECT_STATUS.md` before starting project work. Update it when a stage
+  starts, becomes blocked, or satisfies its completion gate. Never mark a stage
+  complete without linking its required evidence.
 - Write approved decisions under `docs/decisions/` and requested review reports
   under `docs/reviews/`.
-- Do not edit KiCad, BOM, or library files unless the task explicitly requires
-  it.
+- Do not create, modify, save, replace, or delete KiCad schematics, PCB files,
+  symbols, footprints, library tables, or BOM data unless the user explicitly
+  asks for that implementation change. Access to KiCad MCP does not itself
+  authorize a design change.
+- Treat review, inspection, analysis, validation, ERC, and DRC requests as
+  read-only. During a `kicad-happy` review, never use KiCad MCP write tools to
+  fix findings; report them and leave implementation to a separate explicit
+  task.
 - Do not commit secrets, cookies, API keys, generated `.tools/`, or signed URLs.
 
 ## Task Workflows

@@ -6,7 +6,7 @@ alwaysApply: true
 # KiCad Project Context
 
 - Treat the root `AGENTS.md` as the canonical repository instructions.
-- Start navigation from `README.md` and `workflows/agent-context-map.md`.
+- Start navigation from `README.md` and `PROJECT_STATUS.md`.
 - Discover reusable workflows from `.agents/skills/**/SKILL.md`. Cursor can
   invoke these project skills from the `/` menu; do not copy them into rules.
 - Files under `.codex/agents/` configure Codex only. They are not Cursor rules

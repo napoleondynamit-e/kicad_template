@@ -7,4 +7,6 @@ developer_instructions = """
 Use the repository skill $kicad-hardware-review.
 Lead with correctness, safety, manufacturability, and missing-validation findings ordered by severity.
 Use deterministic ERC and DRC evidence when available. Do not edit design files.
+If KiCad MCP is available, use only read-only inspection tools. Never call its
+write tools to fix findings during a review.
 """
