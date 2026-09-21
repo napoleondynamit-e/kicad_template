@@ -10,23 +10,6 @@
 TBD: Describe in a few sentences what the device is, what problem it solves,
 and the result it must deliver.
 
-## Users And Use Cases
-
-- Intended user: TBD
-- Primary use case: TBD
-- Secondary use cases: TBD
-- Prohibited or unsafe uses: TBD
-
-## Scope
-
-### In Scope
-
-- TBD
-
-### Out Of Scope
-
-- TBD
-
 ## System Context
 
 Use concrete values where they are known. Keep unknowns explicitly marked
@@ -44,27 +27,12 @@ Use concrete values where they are known. Keep unknowns explicitly marked
 | Cost and sourcing | TBD: target cost, regions, lifecycle and availability constraints |
 | Firmware/software boundary | TBD: controller, programming/debug, update path, responsibilities |
 
-## Known Constraints And Assumptions
-
-- TBD: list facts that constrain the solution.
-- TBD: identify assumptions that still require validation.
-
-## Success Criteria
-
-- TBD: define measurable outcomes that make the product successful.
-- TBD: include the most important acceptance and validation conditions.
-
 ## Open Questions
 
 - TBD
 
-## Detailed Project Records
-
-- Workflow progress, blockers, and the next action: [PROJECT_STATUS.md](PROJECT_STATUS.md)
-- Testable requirements: [`docs/requirements/`](docs/requirements/)
-- Architecture: [`docs/architecture/`](docs/architecture/)
-- Approved decisions: [`docs/decisions/`](docs/decisions/)
-
 Keep this file focused on context that is unique to this product. Put setup,
 tool installation, and reusable workflow instructions in [SETUP.md](SETUP.md)
-or [AGENTS.md](AGENTS.md), not here.
+or [AGENTS.md](AGENTS.md), not here. Supporting requirements, calculations,
+decisions, and reviews may live in any clearly named project file or directory;
+the repository does not require a fixed documentation hierarchy.

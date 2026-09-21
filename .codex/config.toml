@@ -1,21 +1,5 @@
 #:schema https://developers.openai.com/codex/config-schema.json
 
-[mcp_servers.kicad]
-command = "bash"
-args = ["scripts/kicad-mcp-server.sh"]
-cwd = "."
-enabled = true
-required = false
-startup_timeout_sec = 30
-tool_timeout_sec = 600
-default_tools_approval_mode = "auto"
-
-[mcp_servers.kicad.env]
-NODE_ENV = "production"
-LOG_LEVEL = "info"
-KICAD_AUTO_LAUNCH = "false"
-KICAD_MCP_DEV = "0"
-
 [agents]
 enabled = true
 max_concurrent_threads_per_session = 2

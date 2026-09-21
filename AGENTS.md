@@ -1,123 +1,73 @@
 # Project Agent Context
 
-This repository contains a KiCad PCB project. Read the product description and
-requirements before proposing circuits, selecting components, or changing CAD
-files.
+This repository contains a KiCad PCB project. Read `README.md` first, then find
+task-relevant files by filename, directory name, content, and Git history. You can find requirements and docs in `docs/`.
 
-## Default Read Order
+## Task Routing
 
-1. `README.md`
-2. `PROJECT_STATUS.md`
-3. Relevant files under `docs/requirements/`
-4. Relevant architecture under `docs/architecture/`
-5. Existing decisions under `docs/decisions/`
+| Task class | Executor | Model | Tools and search area | Write access |
+| --- | --- | --- | --- | --- |
+| Requirements, planning, integration, user discussion | Primary agent | Active session model | `README.md`, relevant Markdown, repository search, Git history | Text files requested by the user |
+| Architecture investigation | `hardware_architect` when the work is bounded and context-heavy | `gpt-5.6-sol`, high | Product requirements, existing design files, calculations, manufacturer evidence | Only an explicitly requested architecture artifact |
+| Component and supplier search | `component_researcher` | `gpt-5.6-luna`, medium | `datasheet`, manufacturer data, supplier stock/pricing, existing BOM and component files | None; return exact MPN and evidence to the primary agent |
+| Imported symbol and footprint validation | `part_validator` | `gpt-5.6-terra`, high | Manufacturer datasheet, local libraries, KiCad symbol/footprint data | None; report `PASS`, `WARN`, or `FAIL` |
+| Schematic, PCB, BOM, library, or release review | `kicad_reviewer` | `gpt-5.6-terra`, high | `kicad-cli`, `kicad-happy`, `datasheet`, KiCad and relevant project files | None; report findings only |
+| Schematic, library, or PCB implementation | Primary agent | Active session model | Approved requirements, validated parts, and available KiCad tooling | Only when the user explicitly requests the CAD change |
+| ERC, DRC, BOM, and fabrication exports | Primary agent | Active session model | `kicad-cli` or existing Make targets | Generated outputs only when requested |
 
-## Project Context Map
+The primary agent owns scope, design decisions, user communication, and final
+integration. Delegate component selection or supplier research to
+`component_researcher`, imported-part validation to `part_validator`, and
+schematic or PCB file analysis to `kicad_reviewer`. Keep trivial local lookups,
+small edits, and deterministic commands in the primary agent. Do not run
+parallel agents that could edit the same files.
 
-| Area | Location | Purpose |
-| --- | --- | --- |
-| Project overview | `README.md` | Unique product purpose, users, scope, constraints, and success criteria |
-| Project setup | `SETUP.md` | Bootstrap, tooling, and reusable workflow instructions |
-| Project stage | `PROJECT_STATUS.md` | Current stage, gates, blockers, and next action |
-| Agent rules | `AGENTS.md` | Always-applicable operating constraints |
-| Requirements | `docs/requirements/` | Electrical, mechanical, safety, and firmware-visible constraints |
-| Architecture | `docs/architecture/` | Power, interfaces, control, and protection topology |
-| Decisions | `docs/decisions/` | Approved trade-offs and rationale |
-| Component records | `bom/` | MPNs, sourcing, lifecycle, and validation state |
-| CAD libraries | `lib/` | Symbols, footprints, models, and provenance |
-| KiCad design | `kicad/` | Schematic and PCB source of truth |
-| Validation | `docs/validation/` | Bring-up plans, tests, and measured results |
-| Manufacturing | `fab/` | Release outputs and manifests |
+## Tool Boundaries
 
-## Tool Use
-
-- Use `datasheet` from `PATH` for datasheets, supplier data, SnapEDA/SnapMagic,
-  and structured extraction.
-- Use `kicad-cli` for deterministic ERC, DRC, and exports.
-- Use the project KiCad MCP server for explicitly requested schematic, PCB,
-  symbol, footprint, placement, routing, and other CAD automation.
-- Use the project-local `kicad-happy` skills as an additional review layer; they
-  do not replace ERC, DRC, calculations, or manufacturer documentation.
-- Use other MCP servers only for external systems that the project-local tools
-  and normal web access cannot handle reliably.
+- Use `datasheet` from `PATH` for datasheets, supplier data, structured
+  extraction, and SnapEDA/SnapMagic downloads. A downloaded CAD asset is not
+  validated and is not yet part of the schematic.
+- Use `kicad-cli` for deterministic ERC, DRC, BOM, and manufacturing exports.
+- Use project-local `kicad-happy` skills as an additional read-only review
+  layer. They do not replace ERC, DRC, calculations, or manufacturer evidence.
 
 ## Operating Rules
 
 - Treat manufacturer datasheets as authoritative for electrical and mechanical
-  component facts.
-- Treat imported CAD assets as untrusted until symbol pins, pad mapping,
-  package dimensions, and orientation are validated.
-- Keep open-ended research in chat unless a durable report is requested.
-- Treat `README.md` as project-specific product context. Keep reusable setup and
-  tooling instructions in `SETUP.md`, and preserve critical unknowns as explicit
-  `TBD`s rather than inventing values.
-- Read `PROJECT_STATUS.md` before starting project work. Update it when a stage
-  starts, becomes blocked, or satisfies its completion gate. Never mark a stage
-  complete without linking its required evidence.
-- Write approved decisions under `docs/decisions/` and requested review reports
-  under `docs/reviews/`.
-- Do not create, modify, save, replace, or delete KiCad schematics, PCB files,
-  symbols, footprints, library tables, or BOM data unless the user explicitly
-  asks for that implementation change. Access to KiCad MCP does not itself
-  authorize a design change.
+  facts. Treat supplier data as evidence for availability and price.
+- Treat imported CAD assets as untrusted until pins, pads, package dimensions,
+  and orientation have been checked against manufacturer documentation.
 - Treat review, inspection, analysis, validation, ERC, and DRC requests as
-  read-only. During a `kicad-happy` review, never use KiCad MCP write tools to
-  fix findings; report them and leave implementation to a separate explicit
-  task.
+  read-only. Never fix findings inside the same review task.
+- Do not edit KiCad, BOM, library, or fabrication files unless the user
+  explicitly requests that implementation or export.
+- Keep open-ended research in chat. Create a durable report only when requested,
+  placing it in a clearly named existing directory or a path agreed in the task.
+- Preserve unknowns as `TBD`; do not invent requirements or limits.
 - Do not commit secrets, cookies, API keys, generated `.tools/`, or signed URLs.
 
-## Task Workflows
+## Recommended Design Flow
 
-### Architecture And Design
+This is guidance, not a gate system. Steps may overlap or repeat as evidence
+changes.
 
-1. Read `README.md` and the relevant requirements.
-2. Read existing architecture and decisions.
-3. Inspect component records before proposing parts already evaluated.
-4. Write a durable artifact only when requested or when implementing an
-   explicitly approved decision.
+1. Formalize the product brief and testable requirements.
+2. Select the main components.
+3. Download and validate CAD assets, then add approved parts to the project and
+   schematic.
+4. Implement the support circuitry for each main functional block in turn.
+5. Check each block against the exact manufacturer datasheets.
+6. Complete the schematic and resolve ERC findings.
+7. Verify every applicable project requirement against the schematic.
+8. Generate and review the BOM and estimate cost at the intended quantity.
+9. Establish a preliminary stackup early and refine it before layout.
+10. Refine PCB constraints and configure KiCad rules.
+11. Place and route the PCB, run DRC, and verify it against PCB requirements.
+12. Generate and review fabrication, drill, placement, and BOM outputs.
 
-### Component Selection
+## Skills And Agents
 
-1. Extract requirements before searching.
-2. Use manufacturer documentation for technical facts.
-3. Use distributors for availability and lifecycle evidence.
-4. Treat downloaded CAD as untrusted until separately validated.
-
-A useful component search result contains extracted requirements, unresolved
-constraints, three to five realistic candidates when available, one exact
-recommended MPN or a clear blocker, official datasheet links, package and
-lifecycle information, supplier and CAD-asset notes, risks, and required
-validation. Keep results in chat unless a durable report under
-`docs/reviews/part-search/` is requested.
-
-### KiCad Review
-
-1. Read requirements and component validation records.
-2. Run deterministic ERC or DRC as appropriate.
-3. Run the relevant `kicad-happy` review skill.
-4. Report findings by severity and preserve requested evidence under `work/`
-   or `docs/reviews/`.
-
-### SnapEDA And SnapMagic Imports
-
-Use `make snapeda_login` to authenticate and download a KiCad asset with:
-
-```bash
-make snapeda_download PART=INA240A2DR FORMAT=kicad
-```
-
-The login session is cached outside version control. Never place credentials
-in command history, tracked files, or agent prompts. SnapEDA and SnapMagic are
-import sources, not sources of truth; validate imported symbols, footprints,
-package geometry, and orientation against manufacturer documentation.
-
-## Skills And Delegation
-
-Project skills are discovered from `.agents/skills/**/SKILL.md`. Codex users can
-invoke a skill as `$skill-name`; Cursor exposes the same skills through its `/`
-menu.
-
-Codex-specific custom agents live in `.codex/agents/*.toml`. Delegate only
-bounded, independent, or context-heavy research and review work. Handle small
-edits and deterministic CLI commands in the parent agent. Avoid parallel agents
-that would edit the same files.
+Project skills live under `.agents/skills/**/SKILL.md`; invoke one as
+`$skill-name` when useful. Codex custom-agent definitions live under
+`.codex/agents/*.toml`. Their configured model, reasoning level, sandbox, and
+instructions apply when the primary agent delegates to them.
