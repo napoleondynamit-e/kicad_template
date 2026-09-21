@@ -30,7 +30,12 @@ mkdir my-board
 curl -fsSL --output my-board/bootstrap.sh \
   https://raw.githubusercontent.com/napoleondynamit-e/kicad_template/master/bootstrap.sh
 bash my-board/bootstrap.sh
+cd my-board
+git init
 ```
+
+Git initialization is an explicit project-owner step; the bootstrap script
+does not perform it.
 
 The script does exactly three things: populates its directory from the
 template, installs `datasheet-cli` when `datasheet` is absent from `PATH`, and
@@ -54,9 +59,9 @@ bash bootstrap.sh
 ```
 
 For an existing project, the template copy is skipped. Existing installations
-of `datasheet-cli` and `kicad-happy` are kept, and missing `kicad-happy` skill
-links are created under `.agents/skills/`. The downloaded script then removes
-itself.
+of `datasheet-cli` and `kicad-happy` are kept. The allowed `kicad`, `emc`, and
+`spice` skill links are created and obsolete supplier links are removed. The
+downloaded script then removes itself.
 
 ## Define The Project Before Design Work
 
@@ -81,20 +86,22 @@ project; no fixed `docs/` hierarchy is required.
 An agent can help turn an initial product idea into this context:
 
 ```bash
-codex exec --sandbox workspace-write --skip-git-repo-check \
+codex exec --sandbox workspace-write \
   "Complete README.md from my product description; keep unknowns as TBD"
 ```
 
 ## Work With An Agent
 
-Run Codex from the project root. It automatically receives `AGENTS.md`, project
-skills, and project-scoped custom agents:
+Run Codex from the project root. These commands expect the project directory to
+already be a Git repository; bootstrap deliberately does not initialize it.
+Codex automatically receives `AGENTS.md`, project skills, and project-scoped
+custom agents:
 
 ```bash
 codex
-codex exec --sandbox read-only --skip-git-repo-check \
+codex exec --sandbox workspace-write \
   "Review the current schematic"
-codex exec --sandbox workspace-write --skip-git-repo-check \
+codex exec --sandbox workspace-write \
   "Implement the approved power input in the schematic"
 ```
 
@@ -120,9 +127,10 @@ Bootstrap keeps the `kikcad-happy` checkout inside the project:
 ```
 
 `kikcad-happy` comes from
-`https://github.com/napoleondynamit-e/kikcad-happy`. Its skills are linked into
-`.agents/skills/`, the shared project-level location understood by Codex and
-Cursor. `datasheet-cli` comes from
+`https://github.com/napoleondynamit-e/kikcad-happy`. Only its `kicad`, `emc`,
+and `spice` review skills are linked into `.agents/skills/`. Supplier, BOM, and
+datasheet workflows from `kicad-happy` are deliberately excluded so sourcing
+always goes through `datasheet-cli`, which comes from
 `https://github.com/napoleondynamit-e/datasheet-cli` and is installed into the
 Cargo user bin directory when `datasheet` is not already available in `PATH`.
 
@@ -143,7 +151,7 @@ DATASHEET_CLI_REPO=https://github.com/example/datasheet-cli.git ./bootstrap.sh
 | `SETUP.md` | Reusable template installation and tooling instructions |
 | `kicad/` | KiCad project, schematic, PCB, and project-local tables |
 | `lib/` | Imported symbols, footprints, 3D models, and CAD assets |
-| `bom/` | Component records and generated BOM artifacts |
+| `bom/` | Current grouped supply selections and generated BOM artifacts |
 | `docs/` | Optional project notes; organize and name them to suit the project |
 | `fab/` | Manufacturing release outputs and manifests |
 | `stackup/` | Stackup and impedance constraints |
@@ -170,3 +178,12 @@ project skills, and can resolve all relative paths.
 Copy `.env.example` to `.env` and populate only the services you use. Never
 commit `.env`, API keys, login cookies, or signed download URLs. The bootstrap
 script does not read or upload credentials.
+
+`.env` is not loaded automatically by `codex exec`. For a Mouser task, load it
+and pass the variable explicitly:
+
+```bash
+source .env
+MOUSER_API_KEY="$MOUSER_API_KEY" codex exec --sandbox workspace-write \
+  "Find the optimal component for these requirements using Mouser: ..."
+```

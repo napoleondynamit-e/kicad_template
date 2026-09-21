@@ -13,6 +13,7 @@ DATASHEET_CLI_REPO="${DATASHEET_CLI_REPO:-https://github.com/napoleondynamit-e/d
 DATASHEET_CLI_REF="${DATASHEET_CLI_REF:-master}"
 
 KICAD_HAPPY_DIR="${TOOLS_DIR}/kicad-happy"
+KICAD_HAPPY_SKILLS=(kicad emc spice)
 
 log() {
   printf '[bootstrap] %s\n' "$*"
@@ -107,13 +108,30 @@ install_kicad_happy() {
 
 link_kicad_happy_skills() {
   local skills_root="${ROOT_DIR}/.agents/skills"
-  local skill_dir skill_name destination expected_target
+  local skill_dir skill_name destination expected_target allowed
 
   mkdir -p "${skills_root}"
 
-  for skill_dir in "${KICAD_HAPPY_DIR}"/skills/*; do
-    [[ -f "${skill_dir}/SKILL.md" ]] || continue
-    skill_name="$(basename -- "${skill_dir}")"
+  for destination in "${skills_root}"/*; do
+    [[ -L "${destination}" ]] || continue
+    [[ "$(readlink -- "${destination}")" == ../../.tools/kicad-happy/skills/* ]] \
+      || continue
+
+    skill_name="$(basename -- "${destination}")"
+    allowed=false
+    for expected_target in "${KICAD_HAPPY_SKILLS[@]}"; do
+      if [[ "${skill_name}" == "${expected_target}" ]]; then
+        allowed=true
+        break
+      fi
+    done
+    [[ "${allowed}" == true ]] || rm -- "${destination}"
+  done
+
+  for skill_name in "${KICAD_HAPPY_SKILLS[@]}"; do
+    skill_dir="${KICAD_HAPPY_DIR}/skills/${skill_name}"
+    [[ -f "${skill_dir}/SKILL.md" ]] \
+      || die "Required kicad-happy skill is missing: ${skill_name}"
     destination="${skills_root}/${skill_name}"
     expected_target="../../.tools/kicad-happy/skills/${skill_name}"
 

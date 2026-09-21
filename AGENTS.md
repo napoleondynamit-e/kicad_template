@@ -9,9 +9,9 @@ task-relevant files by filename, directory name, content, and Git history. You c
 | --- | --- | --- | --- | --- |
 | Requirements, planning, integration, user discussion | Primary agent | Active session model | `README.md`, relevant Markdown, repository search, Git history | Text files requested by the user |
 | Architecture investigation | `hardware_architect` when the work is bounded and context-heavy | `gpt-5.6-sol`, high | Product requirements, existing design files, calculations, manufacturer evidence | Only an explicitly requested architecture artifact |
-| Component and supplier search | `component_researcher` | `gpt-5.6-luna`, medium | `datasheet`, manufacturer data, supplier stock/pricing, existing BOM and component files | None; return exact MPN and evidence to the primary agent |
+| Component and supplier search | `component_researcher` | `gpt-5.6-luna`, medium | `datasheet` only, plus manufacturer evidence and existing component records | May update `bom/supply_chain.md`; no other project writes |
 | Imported symbol and footprint validation | `part_validator` | `gpt-5.6-terra`, high | Manufacturer datasheet, local libraries, KiCad symbol/footprint data | None; report `PASS`, `WARN`, or `FAIL` |
-| Schematic, PCB, BOM, library, or release review | `kicad_reviewer` | `gpt-5.6-terra`, high | `kicad-cli`, `kicad-happy`, `datasheet`, KiCad and relevant project files | None; report findings only |
+| Schematic, PCB, BOM, library, or release review | `kicad_reviewer` | `gpt-5.6-terra`, high | `kicad-cli`, `kicad-happy`, `datasheet`, KiCad and relevant project files | Review and analyzer artifacts under `work/`; no design changes |
 | Schematic, library, or PCB implementation | Primary agent | Active session model | Approved requirements, validated parts, and available KiCad tooling | Only when the user explicitly requests the CAD change |
 | ERC, DRC, BOM, and fabrication exports | Primary agent | Active session model | `kicad-cli` or existing Make targets | Generated outputs only when requested |
 
@@ -27,9 +27,13 @@ parallel agents that could edit the same files.
 - Use `datasheet` from `PATH` for datasheets, supplier data, structured
   extraction, and SnapEDA/SnapMagic downloads. A downloaded CAD asset is not
   validated and is not yet part of the schematic.
+- `datasheet` is the only supplier-search interface. Do not use distributor,
+  sourcing, BOM, or datasheet-download workflows from `kicad-happy`.
 - Use `kicad-cli` for deterministic ERC, DRC, BOM, and manufacturing exports.
-- Use project-local `kicad-happy` skills as an additional read-only review
-  layer. They do not replace ERC, DRC, calculations, or manufacturer evidence.
+- Use project-local `kicad-happy` skills as an additional design-read-only
+  review layer for KiCad, EMC, and SPICE analysis. Reviewers may write generated
+  evidence under `work/`, but the tools do not replace ERC, DRC, calculations,
+  or manufacturer evidence.
 
 ## Operating Rules
 
@@ -38,9 +42,11 @@ parallel agents that could edit the same files.
 - Treat imported CAD assets as untrusted until pins, pads, package dimensions,
   and orientation have been checked against manufacturer documentation.
 - Treat review, inspection, analysis, validation, ERC, and DRC requests as
-  read-only. Never fix findings inside the same review task.
+  read-only with respect to design sources. Reviewers may write reports and
+  analyzer output under `work/`; never fix findings inside the same review task.
 - Do not edit KiCad, BOM, library, or fabrication files unless the user
-  explicitly requests that implementation or export.
+  explicitly requests that implementation or export. The component researcher
+  may maintain `bom/supply_chain.md` as defined by its skill.
 - Keep open-ended research in chat. Create a durable report only when requested,
   placing it in a clearly named existing directory or a path agreed in the task.
 - Preserve unknowns as `TBD`; do not invent requirements or limits.
